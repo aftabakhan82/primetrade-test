@@ -9,7 +9,7 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bot_database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY']='Primetradetest'
+app.config['SECRET_KEY']=os.getenv("FLASK_SECRET_KEY", "your_flask_secret_key")
 
 db.init_app(app)
 
