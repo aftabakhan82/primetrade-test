@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primetrade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- GSAP for Ultra-Performant Smooth Scrolling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollToPlugin.min.js"></script>
+
+    <script>
+        // Setup Tailwind dark mode configuration
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: '#22d3ee',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            transition: background-color 0.3s ease, color 0.3s ease;
+            overflow-y: scroll; /* Ensure scrollbar is always visible to prevent layout shift */
+        }
+
+        .dark body {
+            background-color: #02040a;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.04) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(244, 63, 94, 0.04) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.02) 0%, transparent 60%);
+        }
+
+        .light body {
+            background-color: #f8fafc;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.03) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(244, 63, 94, 0.03) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.01) 0%, transparent 60%);
+        }
+
+        .font-mono-numeric {
+            font-family: 'JetBrains Mono', monospace;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar { width: 4px; }
+        .dark ::-webkit-scrollbar-track { background: #02040a; }
+        .light ::-webkit-scrollbar-track { background: #f1f5f9; }
+        .dark ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .light ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        /* Smooth CSS Transitions for Glow Flashes */
+        .tick-up {
+            animation: flash-green 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .tick-down {
+            animation: flash-red 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes flash-green {
+            0% { color: #10b981; text-shadow: 0 0 15px rgba(16, 185, 129, 0.8); }
+            100% { inherit: color; text-shadow: 0 0 4px rgba(16, 185, 129, 0.1); }
+        }
+
+        @keyframes flash-red {
+            0% { color: #f43f5e; text-shadow: 0 0 15px rgba(244, 63, 94, 0.8); }
+            100% { inherit: color; text-shadow: 0 0 4px rgba(244, 63, 94, 0.1); }
+        }
+
+        /* Ambient grid pattern background */
+        .bg-grid {
+            background-size: 40px 40px;
+        }
+        .dark .bg-grid {
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.01) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+        }
+        .light .bg-grid {
+            background-image: 
+                linear-gradient(to right, rgba(15, 23, 42, 0.015) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(15, 23, 42, 0.015) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="text-slate-800 dark:text-slate-200 min-h-screen selection:bg-cyan-500 selection:text-black antialiased bg-grid pb-12 transition-colors duration-300">
+
+    <!-- Ambient full-screen alert flash warning overlay -->
+    <div id="alarm-overlay" class="fixed inset-0 bg-red-600/20 backdrop-blur-md z-[999] flex flex-col items-center justify-center hidden">
+        <div class="bg-slate-950/90 border border-red-500/30 p-8 rounded-3xl max-w-md w-full text-center space-y-6 shadow-2xl animate-bounce">
+            <div class="h-16 w-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center mx-auto text-red-500 text-3xl font-bold">!</div>
+            <div class="space-y-2">
+                <h3 class="text-white text-xl font-bold tracking-wider uppercase">PRICE ALERT TRIGGERED</h3>
+                <p class="text-slate-400 text-xs tracking-wide">Live Asset Target Crossed Threshold</p>
+                <div class="bg-red-500/10 text-red-400 py-2 rounded-xl text-lg font-mono font-bold mt-2 border border-red-500/20">
+                    $<span id="alarm-target-val">0.00</span>
+                </div>
+            </div>
+            <button onclick="dismissAlarm()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl text-xs uppercase tracking-widest transition-all duration-300 shadow-lg shadow-red-600/20 cursor-pointer">
+                Dismiss Signal
+            </button>
+        </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-200/60 dark:border-white/[0.04] bg-slate-100/60 dark:bg-slate-950/40 backdrop-blur-xl sticky top-0 z-50 px-8 py-4 flex justify-between items-center transition-all duration-300">
+        <div class="flex items-center space-x-3 group cursor-pointer" onclick="playBeep(800, 0.05, 'sine')">
+            <div class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]"></span>
+            </div>
+            <span class="tracking-widest text-xs font-bold uppercase text-slate-800 dark:text-slate-300 group-hover:text-cyan-500 transition-colors">
+                PRIMETRADE <span class="text-cyan-500 dark:text-cyan-400 font-mono"></span>
+            </span>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+            <!-- Sound controller button -->
+            <button onclick="toggleSound()" id="sound-btn" class="p-2 rounded-lg bg-slate-200/50 hover:bg-slate-200 dark:bg-white/[0.02] dark:hover:bg-white/[0.05] border border-slate-300/60 dark:border-white/[0.05] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition duration-300 cursor-pointer" title="Toggle Sound Feedback">
+                <svg id="sound-icon-unmuted" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.75V5.25L7.75 9.5H4.5v5h3.25L12 18.75z"/></svg>
+                <svg id="sound-icon-muted" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l4-4m0 4l-4-4" /></svg>
+            </button>
+
+            <!-- Day/Night Toggle Switch -->
+            <button onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-200/50 hover:bg-slate-200 dark:bg-white/[0.02] dark:hover:bg-white/[0.05] border border-slate-300/60 dark:border-white/[0.05] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition duration-300 cursor-pointer" title="Toggle Theme Layout">
+                <!-- Moon icon (shows in dark mode) -->
+                <svg class="w-4 h-4 dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <!-- Sun icon (shows in light mode) -->
+                <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
+            </button>
+
+            <span class="text-[10px] bg-emerald-500/10 dark:bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-full uppercase tracking-widest font-bold shadow-inner">
+                Binance Live Feed
+            </span>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 lg:p-8 space-y-8">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="space-y-3" id="flash-container">
+                {% for category, message in messages %}
+                    <div class="flex items-center justify-between p-4 rounded-xl backdrop-blur-xl border transition-all duration-500 transform translate-y-0 opacity-100
+                        {% if category == 'success' %}
+                            bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_4px_20px_rgba(16,185,129,0.05)]
+                        {% else %}
+                            bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-[0_4px_20px_rgba(244,63,94,0.05)]
+                        {% endif %}">
+                        
+                        <div class="flex items-center space-x-3 text-xs font-semibold tracking-wide">
+                            <span class="font-mono uppercase text-[10px] bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                {{ category }}
+                            </span>
+                            <span>{{ message }}</span>
+                        </div>
+                        
+                        <button onclick="this.parentElement.remove(); playBeep(300, 0.05, 'sine')" class="text-slate-400 hover:text-white transition duration-200 text-sm font-bold cursor-pointer px-1">
+                            ✕
+                        </button>
+                    </div>
+                {% endfor %}
+            </div>
+            <script>
+                setTimeout(() => {
+                    const el = document.getElementById('flash-container');
+                    if(el) {
+                        gsap.to(el.children, {
+                            opacity: 0,
+                            y: -10,
+                            duration: 0.4,
+                            stagger: 0.1,
+                            onComplete: () => el.remove()
+                        });
+                    }
+                }, 6000);
+            </script>
+        {% endif %}
+    {% endwith %}
+
+        <!-- Multi-Pair Institutional Quick Selector Grid -->
+        <section class="bg-slate-200/10 dark:bg-slate-950/20 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.03] p-4 rounded-2xl shadow-lg">
+            <p class="text-[9px] font-bold tracking-widest text-slate-400 uppercase mb-3 px-1">Institutional Pair Matrix Selection</p>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3" id="pair-selector-container">
+                <button onclick="switchPair('BTCUSDT', 67420.00, 0.05, 100)" class="pair-card bg-slate-100 dark:bg-slate-900/40 border-2 border-cyan-500/50 dark:border-cyan-500 text-slate-900 dark:text-white px-4 py-3 rounded-xl flex flex-col items-start transition-all duration-300 hover:border-cyan-400 cursor-pointer text-left shadow-md">
+                    <span class="text-[11px] font-bold tracking-wider font-mono">BTCUSDT</span>
+                    <span class="text-xs font-mono-numeric font-bold mt-1 text-cyan-500 dark:text-cyan-400">$67,420.00</span>
+                </button>
+                <button onclick="switchPair('ETHUSDT', 3480.00, 0.02, 50)" class="pair-card bg-slate-200/40 dark:bg-slate-900/10 border border-slate-300 dark:border-white/[0.04] text-slate-700 dark:text-slate-400 px-4 py-3 rounded-xl flex flex-col items-start transition-all duration-300 hover:border-cyan-400/50 cursor-pointer text-left">
+                    <span class="text-[11px] font-bold tracking-wider font-mono">ETHUSDT</span>
+                    <span class="text-xs font-mono-numeric font-bold mt-1 text-slate-500 dark:text-slate-300">$3,480.00</span>
+                </button>
+                <button onclick="switchPair('SOLUSDT', 145.20, 0.015, 20)" class="pair-card bg-slate-200/40 dark:bg-slate-900/10 border border-slate-300 dark:border-white/[0.04] text-slate-700 dark:text-slate-400 px-4 py-3 rounded-xl flex flex-col items-start transition-all duration-300 hover:border-cyan-400/50 cursor-pointer text-left">
+                    <span class="text-[11px] font-bold tracking-wider font-mono">SOLUSDT</span>
+                    <span class="text-xs font-mono-numeric font-bold mt-1 text-slate-500 dark:text-slate-300">$145.20</span>
+                </button>
+                <button onclick="switchPair('BNBUSDT', 580.40, 0.018, 20)" class="pair-card bg-slate-200/40 dark:bg-slate-900/10 border border-slate-300 dark:border-white/[0.04] text-slate-700 dark:text-slate-400 px-4 py-3 rounded-xl flex flex-col items-start transition-all duration-300 hover:border-cyan-400/50 cursor-pointer text-left">
+                    <span class="text-[11px] font-bold tracking-wider font-mono">BNBUSDT</span>
+                    <span class="text-xs font-mono-numeric font-bold mt-1 text-slate-500 dark:text-slate-300">$580.40</span>
+                </button>
+                <button onclick="switchPair('DOGEUSDT', 0.1450, 0.00015, 10)" class="pair-card col-span-2 sm:col-span-1 bg-slate-200/40 dark:bg-slate-900/10 border border-slate-300 dark:border-white/[0.04] text-slate-700 dark:text-slate-400 px-4 py-3 rounded-xl flex flex-col items-start transition-all duration-300 hover:border-cyan-400/50 cursor-pointer text-left">
+                    <span class="text-[11px] font-bold tracking-wider font-mono">DOGEUSDT</span>
+                    <span class="text-xs font-mono-numeric font-bold mt-1 text-slate-500 dark:text-slate-300">$0.1450</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Performance / Status Matrix Rows -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- Live Ticking Balance Card -->
+            <div class="bg-gradient-to-b from-white/[0.4] to-transparent dark:from-white/[0.03] backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.04] p-6 rounded-2xl relative overflow-hidden group hover:border-slate-300 dark:hover:border-white/[0.08] hover:shadow-[0_12px_40px_rgba(0,0,0,0.05)] dark:hover:shadow-[0_12px_40px_rgba(0,0,0,0.6)] transition-all duration-500">
+                <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/15 transition-all duration-500"></div>
+                <div class="flex justify-between items-center">
+                    <p class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Available Balance (Est.)</p>
+                    <span class="text-[9px] text-cyan-600 dark:text-cyan-400/60 font-mono tracking-widest">LIVE TICKING</span>
+                </div>
+                <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-2 group-hover:scale-[1.005] origin-left transition-transform duration-300 font-mono-numeric">
+                    $<span id="live-balance">--</span> <span class="text-xs font-semibold text-slate-500">USDT</span>
+                </h3>
+            </div>
+
+            <!-- Live Ticking Unrealized PnL Card -->
+            <div class="bg-gradient-to-b from-white/[0.4] to-transparent dark:from-white/[0.03] backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.04] p-6 rounded-2xl relative overflow-hidden group hover:border-slate-300 dark:hover:border-white/[0.08] hover:shadow-[0_12px_40px_rgba(0,0,0,0.05)] dark:hover:shadow-[0_12px_40px_rgba(0,0,0,0.6)] transition-all duration-500">
+                <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/15 transition-all duration-500"></div>
+                <div class="flex justify-between items-center">
+                    <p class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Unrealized Profit & Loss</p>
+                    <div class="flex items-center space-x-1">
+                        <span id="trend-icon" class="text-xs">▲</span>
+                        <span id="tick-ms-indicator" class="text-[9px] text-emerald-600 dark:text-emerald-400/60 font-mono tracking-widest">HFT SIM</span>
+                    </div>
+                </div>
+                <h3 class="text-3xl font-bold tracking-tight mt-2 transition-all duration-300 font-mono-numeric text-emerald-500 dark:text-emerald-400" id="live-pnl-container">
+                    $<span id="live-pnl">--</span> <span class="text-xs font-semibold text-slate-500">USDT</span>
+                </h3>
+            </div>
+
+            <!-- Target Asset Details & Dynamic Mini-Chart -->
+            <div class="bg-gradient-to-b from-white/[0.4] to-transparent dark:from-white/[0.03] backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.04] p-6 rounded-2xl relative overflow-hidden group hover:border-slate-300 dark:hover:border-white/[0.08] hover:shadow-[0_12px_40px_rgba(0,0,0,0.05)] dark:hover:shadow-[0_12px_40px_rgba(0,0,0,0.6)] transition-all duration-500 flex flex-col justify-between">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Active Futures Pair</p>
+                        <h3 class="text-2xl font-bold text-slate-900 dark:text-cyan-400 mt-1 tracking-wider font-mono" id="active-pair-name">{{ config.symbol }}</h3>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Simulated Price</p>
+                        <p class="text-sm font-bold text-slate-700 dark:text-slate-300 font-mono-numeric mt-1">$<span id="asset-live-price">--</span></p>
+                    </div>
+                </div>
+                <!-- Mini sparkline chart showing dynamic real-time fluctuations -->
+                <div class="h-10 mt-3 relative flex items-end">
+                    <svg id="sparkline" class="w-full h-full text-cyan-500" preserveAspectRatio="none">
+                        <path d="" fill="none" stroke="currentColor" stroke-width="1.5" class="transition-all duration-100"></path>
+                    </svg>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Body Splits -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            
+            <!-- Controls & Order Management Profile -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Runtime Execution Configuration -->
+                <div class="bg-slate-200/20 dark:bg-slate-950/20 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.03] p-6 rounded-2xl shadow-2xl">
+                    <h4 class="text-xs font-bold tracking-widest uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-white/[0.05] pb-3 mb-5">Risk Matrix Setup</h4>
+                    <form action="/update_config" method="POST" class="space-y-4" onsubmit="playBeep(440, 0.1, 'triangle')">
+                        <div>
+                            <label class="block text-[9px] font-bold tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 uppercase">Symbol Pair</label>
+                            <input type="text" id="symbol-input" name="symbol" value="{{ config.symbol }}" class="w-full bg-slate-100 dark:bg-slate-950/80 border border-slate-300/60 dark:border-white/[0.05] rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-cyan-500/80 focus:ring-4 focus:ring-cyan-500/10 text-slate-900 dark:text-slate-200 transition-all duration-300 font-mono uppercase">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[9px] font-bold tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 uppercase">Leverage Limit</label>
+                                <input type="number" name="leverage" value="{{ config.leverage }}" class="w-full bg-slate-100 dark:bg-slate-950/80 border border-slate-300/60 dark:border-white/[0.05] rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-cyan-500/80 focus:ring-4 focus:ring-cyan-500/10 text-slate-900 dark:text-slate-200 transition-all duration-300 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-bold tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 uppercase">Order Size (Units)</label>
+                                <input type="text" id="order-size-input" name="order_size" value="{{ config.order_size }}" class="w-full bg-slate-100 dark:bg-slate-950/80 border border-slate-300/60 dark:border-white/[0.05] rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-cyan-500/80 focus:ring-4 focus:ring-cyan-500/10 text-slate-900 dark:text-slate-200 transition-all duration-300 font-mono">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-slate-900 dark:bg-slate-200 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.98] shadow-lg shadow-black/5 cursor-pointer">
+                            Apply Configurations
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Instant Execution Block -->
+                <div class="bg-slate-200/20 dark:bg-slate-950/20 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.03] p-6 rounded-2xl shadow-2xl">
+                    <h4 class="text-xs font-bold tracking-widest uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-white/[0.05] pb-3 mb-5">Direct Terminal Execution</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <form action="/execute_trade" method="POST" onsubmit="playBeep(650, 0.15, 'sine')">
+                            <input type="hidden" name="side" value="BUY">
+                            <button type="submit" class="w-full bg-emerald-500/5 hover:bg-emerald-500 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:text-slate-950 font-bold py-4 rounded-xl text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.96] shadow-[0_4px_20px_rgba(16,185,129,0.02)] hover:shadow-[0_0_25px_rgba(16,185,129,0.25)] cursor-pointer">
+                                Long (Buy)
+                            </button>
+                        </form>
+                        <form action="/execute_trade" method="POST" onsubmit="playBeep(250, 0.15, 'sine')">
+                            <input type="hidden" name="side" value="SELL">
+                            <button type="submit" class="w-full bg-rose-500/5 hover:bg-rose-500 border border-rose-500/20 text-rose-600 dark:text-rose-400 hover:text-slate-950 font-bold py-4 rounded-xl text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.96] shadow-[0_4px_20px_rgba(244,63,94,0.02)] hover:shadow-[0_0_25px_rgba(244,63,94,0.25)] cursor-pointer">
+                                Short (Sell)
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Premium close active order button -->
+                    <form action="/close_position" method="POST" onsubmit="playBeep(350, 0.15, 'sawtooth')">
+                        <input type="hidden" name="symbol" id="close-symbol-input" value="{{ config.symbol }}">
+                        <button type="submit" class="w-full mt-4 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/30 text-rose-500 hover:text-slate-950 font-bold py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.96] hover:shadow-[0_0_25px_rgba(244,63,94,0.2)] cursor-pointer">
+                            Close Position (Market Exit)
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Live Dynamic Depth/Orderbook Widget -->
+                <div class="bg-slate-200/20 dark:bg-slate-950/20 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.03] p-6 rounded-2xl shadow-2xl space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-200/80 dark:border-white/[0.05] pb-3">
+                        <h4 class="text-xs font-bold tracking-widest uppercase text-slate-600 dark:text-slate-400">Order Depth (HFT)</h4>
+                        <span class="text-[8px] font-mono bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 px-2 py-0.5 rounded-md">LIVE SPREAD</span>
+                    </div>
+                    <div class="space-y-1 text-xs font-mono-numeric">
+                        <!-- Asks (Sells) - Render in reverse descending order -->
+                        <div class="flex justify-between text-rose-500 dark:text-rose-400" id="ask-3"><span>--</span> <span class="text-slate-500">--</span></div>
+                        <div class="flex justify-between text-rose-500 dark:text-rose-400" id="ask-2"><span>--</span> <span class="text-slate-500">--</span></div>
+                        <div class="flex justify-between text-rose-500 dark:text-rose-400" id="ask-1"><span>--</span> <span class="text-slate-500">--</span></div>
+                        <!-- Spread midpoint banner -->
+                        <div class="py-1 border-y border-slate-200/60 dark:border-white/[0.03] text-center text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                            SPREAD Mid: $<span id="midpoint-val">--</span>
+                        </div>
+                        <!-- Bids (Buys) -->
+                        <div class="flex justify-between text-emerald-500 dark:text-emerald-400" id="bid-1"><span>--</span> <span class="text-slate-500">--</span></div>
+                        <div class="flex justify-between text-emerald-500 dark:text-emerald-400" id="bid-2"><span>--</span> <span class="text-slate-500">--</span></div>
+                        <div class="flex justify-between text-emerald-500 dark:text-emerald-400" id="bid-3"><span>--</span> <span class="text-slate-500">--</span></div>
+                    </div>
+                </div>
+
+                <!-- Price Alert Panel -->
+                <div class="bg-slate-200/20 dark:bg-slate-950/20 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.03] p-6 rounded-2xl shadow-2xl">
+                    <h4 class="text-xs font-bold tracking-widest uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-white/[0.05] pb-3 mb-4">Signal Alert Center</h4>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-[9px] font-bold tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 uppercase">TARGET PRICE ($)</label>
+                            <input type="number" id="alert-price" placeholder="e.g. 67425.00" step="0.01" class="w-full bg-slate-100 dark:bg-slate-950/80 border border-slate-300/60 dark:border-white/[0.05] rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-cyan-500/80 focus:ring-4 focus:ring-cyan-500/10 text-slate-900 dark:text-slate-200 transition-all duration-300 font-mono">
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="setAlert()" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition duration-300 active:scale-[0.98] cursor-pointer">
+                                Arm Alert
+                            </button>
+                            <button onclick="clearAlert()" class="bg-slate-300 dark:bg-slate-800 hover:bg-slate-400 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold px-4 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition duration-300 active:scale-[0.98] cursor-pointer">
+                                Clear
+                            </button>
+                        </div>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono text-center" id="alert-status">
+                            No Active Price Alert Set
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Position Framework & Historical Logs -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Open Live Positions Panel -->
+                <div class="bg-slate-200/20 dark:bg-slate-950/20 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.03] p-6 rounded-2xl shadow-2xl">
+                    <h4 class="text-xs font-bold tracking-widest uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-white/[0.05] pb-3 mb-4">Live Open Positions</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr class="text-[9px] uppercase text-slate-500 tracking-widest border-b border-slate-200/80 dark:border-white/[0.04]">
+                                    <th class="pb-3 font-semibold">Symbol</th>
+                                    <th class="pb-3 font-semibold">Position Size</th>
+                                    <th class="pb-3 font-semibold">Entry Price</th>
+                                    <th class="pb-3 font-semibold">Live PnL</th>
+                                    <th class="pb-3 font-semibold text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200/60 dark:divide-white/[0.02] text-slate-700 dark:text-slate-300 font-medium" id="positions-tbody">
+                                {% for pos in positions %}
+                                <tr class="hover:bg-slate-200/10 dark:hover:bg-white/[0.01] transition-colors duration-150" id="pos-row-{{ pos.symbol }}">
+                                    <td class="py-3.5 font-bold text-slate-900 dark:text-white tracking-wider font-mono">{{ pos.symbol }}</td>
+                                    <td class="py-3.5 font-mono-numeric {% if pos.positionAmt | float >= 0 %}text-emerald-500 dark:text-emerald-400{% else %}text-rose-500 dark:text-rose-400{% endif %}">
+                                        {{ pos.positionAmt }}
+                                    </td>
+                                    <td class="py-3.5 font-mono-numeric text-slate-500 dark:text-slate-400">${{ pos.entryPrice }}</td>
+                                    <td class="py-3.5 font-mono-numeric {% if pos.unrealizedProfit | float >= 0 %}text-emerald-500 dark:text-emerald-400{% else %}text-rose-500 dark:text-rose-400{% endif %}" id="pos-val-{{ pos.symbol }}">
+                                        ${{ pos.unrealizedProfit }}
+                                    </td>
+                                    <td class="py-3.5 text-right">
+                                        <form action="/close_position" method="POST" class="inline" onsubmit="playBeep(350, 0.15, 'sawtooth')">
+                                            <input type="hidden" name="symbol" value="{{ pos.symbol }}">
+                                            <button type="submit" class="px-3 py-1 rounded bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 text-[9px] text-rose-500 hover:text-slate-950 font-bold uppercase transition-all duration-200 cursor-pointer">
+                                                Close
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="py-8 text-center text-[10px] text-slate-500 tracking-widest uppercase font-medium">No Active Contracts Found</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Database Execution Log History -->
+                <div class="bg-slate-200/20 dark:bg-slate-950/20 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.03] p-6 rounded-2xl shadow-2xl">
+                    <h4 class="text-xs font-bold tracking-widest uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-white/[0.05] pb-3 mb-4">Internal Log Records</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr class="text-[9px] uppercase text-slate-500 tracking-widest border-b border-slate-200/80 dark:border-white/[0.04]">
+                                    <th class="pb-3 font-semibold">Timestamp</th>
+                                    <th class="pb-3 font-semibold">Symbol</th>
+                                    <th class="pb-3 font-semibold">Action Type</th>
+                                    <th class="pb-3 font-semibold">Amount</th>
+                                    <th class="pb-3 font-semibold">Execution Price</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200/60 dark:divide-white/[0.02] text-slate-600 dark:text-slate-400">
+                                {% for log in trade_logs %}
+                                <tr class="hover:bg-slate-200/10 dark:hover:bg-white/[0.01] transition-colors duration-150">
+                                    <td class="py-3 text-xs font-mono text-slate-500">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td class="py-3 font-bold text-slate-800 dark:text-slate-200">{{ log.symbol }}</td>
+                                    <td class="py-3">
+                                        <span class="text-[8px] px-2 py-0.5 rounded-md font-bold tracking-widest uppercase {% if log.side == 'BUY' %}bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20{% else %}bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20{% endif %}">
+                                            {{ log.side }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 font-mono-numeric text-slate-700 dark:text-slate-300">{{ log.quantity }}</td>
+                                    <td class="py-3 font-mono-numeric text-slate-700 dark:text-slate-300">${{ log.price }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="py-8 text-center text-[10px] text-slate-500 tracking-widest uppercase font-medium">No Logs Recorded in SQLite</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- UI Logic, Audio and Live Ticker Loop -->
+    <script>
+        // Set standard base values provided by Flask.
+        const baseBalance = parseFloat("{{ balance }}".replace(/[^0-9.-]/g, "")) || 10245.50;
+        let basePnL = parseFloat("{{ pnl }}".replace(/[^0-9.-]/g, "")) || -12.40;
+
+        let activeBalance = baseBalance;
+        let activePnL = basePnL;
+        const sparklinePoints = [];
+        const maxPoints = 30;
+
+        // Base parameters matching active dynamic selections
+        let currentSymbol = "{{ config.symbol }}" || "BTCUSDT";
+        let btcBasePrice = 67420.00;
+        let tickVolatility = 0.05;
+        let decimalScale = 2;
+        let activeAssetPrice = btcBasePrice + activePnL;
+
+        // Structured state object to maintain active positions cleanly in the frontend matrix
+        const positionsState = {
+            'BTCUSDT': null,
+            'ETHUSDT': null,
+            'SOLUSDT': null,
+            'BNBUSDT': null,
+            'DOGEUSDT': null
+        };
+
+        // Populate baseline positions parameters directly from Jinja templates variables
+        {% for pos in positions %}
+        positionsState["{{ pos.symbol }}"] = {
+            symbol: "{{ pos.symbol }}",
+            positionAmt: parseFloat("{{ pos.positionAmt }}") || 0,
+            entryPrice: parseFloat("{{ pos.entryPrice }}") || 0,
+            unrealizedProfit: parseFloat("{{ pos.unrealizedProfit }}") || 0
+        };
+        {% endfor %}
+
+        // Sound Feedback System configuration
+        let audioCtx = null;
+        let soundEnabled = true;
+        let alarmInterval = null;
+        let alarmActive = false;
+        let armedAlertPrice = null;
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const mutedIcon = document.getElementById('sound-icon-muted');
+            const unmutedIcon = document.getElementById('sound-icon-unmuted');
+            
+            if (soundEnabled) {
+                mutedIcon.classList.add('hidden');
+                unmutedIcon.classList.remove('hidden');
+                playBeep(600, 0.05, 'sine');
+            } else {
+                unmutedIcon.classList.add('hidden');
+                mutedIcon.classList.remove('hidden');
+            }
+        }
+
+        function playBeep(freq = 440, duration = 0.1, type = 'sine') {
+            if (!soundEnabled) return;
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                
+                gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {
+                // Audio blocked or uninitialized
+            }
+        }
+
+        // Real-time Pair Matrix Switching Logic
+        function switchPair(symbol, basePrice, volatility, defaultSize) {
+            currentSymbol = symbol;
+            btcBasePrice = basePrice;
+            tickVolatility = volatility;
+            
+            // Set scale precision based on price magnitudes
+            decimalScale = basePrice < 1.0 ? 4 : 2;
+
+            // Update UI Title card, input field value, and order quantity sizing guide
+            document.getElementById('active-pair-name').textContent = symbol;
+            document.getElementById('symbol-input').value = symbol;
+            document.getElementById('order-size-input').value = defaultSize;
+            document.getElementById('close-symbol-input').value = symbol;
+
+            // Resolve selected pair PnL state
+            const targetPos = positionsState[symbol];
+            if (targetPos && targetPos.positionAmt !== 0) {
+                activePnL = targetPos.unrealizedProfit;
+            } else {
+                activePnL = 0.0000;
+            }
+
+            activeAssetPrice = btcBasePrice + activePnL;
+            
+            // Clear alerts to prevent immediate invalid alert triggers on asset swaps
+            clearAlert();
+
+            // Clear visual indicators and chart vectors
+            sparklinePoints.length = 0;
+            for(let i=0; i<maxPoints; i++) {
+                sparklinePoints.push(activePnL + (Math.random() - 0.5) * (volatility * 20));
+            }
+            renderSparkline();
+
+            // Premium Audio transition confirmation clicks
+            playBeep(850, 0.12, 'triangle');
+            setTimeout(() => playBeep(1200, 0.08, 'sine'), 80);
+
+            // Manage CSS Active states inside selector element list
+            const buttons = document.querySelectorAll('#pair-selector-container button');
+            buttons.forEach(btn => {
+                if (btn.innerText.includes(symbol)) {
+                    btn.className = "pair-card bg-slate-100 dark:bg-slate-900/40 border-2 border-cyan-500/50 dark:border-cyan-500 text-slate-900 dark:text-white px-4 py-3 rounded-xl flex flex-col items-start transition-all duration-300 hover:border-cyan-400 cursor-pointer text-left shadow-md";
+                } else {
+                    btn.className = "pair-card bg-slate-200/40 dark:bg-slate-900/10 border border-slate-300 dark:border-white/[0.04] text-slate-700 dark:text-slate-400 px-4 py-3 rounded-xl flex flex-col items-start transition-all duration-300 hover:border-cyan-400/50 cursor-pointer text-left";
+                }
+            });
+        }
+
+        // Theme switching engine
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                html.classList.add('light');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.remove('light');
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            playBeep(700, 0.08, 'triangle');
+        }
+
+        // Load stored theme or default to system dark
+        if (localStorage.getItem('theme') === 'light') {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+        }
+
+        // Price Alert Trigger Logic
+        function setAlert() {
+            const inputVal = document.getElementById('alert-price').value;
+            if (inputVal) {
+                armedAlertPrice = parseFloat(inputVal);
+                document.getElementById('alert-status').innerHTML = `Alert set at <span class="text-cyan-500 font-mono font-bold">$${armedAlertPrice.toFixed(decimalScale)}</span>`;
+                playBeep(900, 0.1, 'sine');
+            }
+        }
+
+        function clearAlert() {
+            armedAlertPrice = null;
+            document.getElementById('alert-status').textContent = "No Active Price Alert Set";
+            playBeep(300, 0.1, 'sine');
+        }
+
+        function triggerAlarm() {
+            if (alarmActive) return;
+            alarmActive = true;
+            document.getElementById('alarm-target-val').textContent = armedAlertPrice.toFixed(decimalScale);
+            document.getElementById('alarm-overlay').classList.remove('hidden');
+
+            // Synthesize repeating premium alarm sound
+            if (soundEnabled) {
+                alarmInterval = setInterval(() => {
+                    playBeep(880, 0.25, 'sine');
+                    setTimeout(() => playBeep(660, 0.25, 'sine'), 150);
+                }, 400);
+            }
+        }
+
+        function dismissAlarm() {
+            alarmActive = false;
+            armedAlertPrice = null;
+            clearInterval(alarmInterval);
+            document.getElementById('alarm-overlay').classList.add('hidden');
+            document.getElementById('alert-status').textContent = "No Active Price Alert Set";
+            document.getElementById('alert-price').value = "";
+            playBeep(1000, 0.1, 'sine');
+        }
+
+        // Initialize display values
+        document.getElementById('live-balance').textContent = activeBalance.toFixed(4);
+        document.getElementById('live-pnl').textContent = activePnL.toFixed(4);
+        document.getElementById('asset-live-price').textContent = activeAssetPrice.toFixed(decimalScale);
+
+        const pnlElement = document.getElementById('live-pnl');
+        const pnlContainer = document.getElementById('live-pnl-container');
+        const balanceElement = document.getElementById('live-balance');
+        const trendIcon = document.getElementById('trend-icon');
+        const assetPriceElement = document.getElementById('asset-live-price');
+
+        // High frequency client side price-ticks update engine
+        function tickEngine() {
+            const change = (Math.random() - 0.495) * tickVolatility; 
+            
+            // Look up if selected pair has a live active trade
+            const currentPosition = positionsState[currentSymbol];
+            const hasPosition = currentPosition && currentPosition.positionAmt !== 0;
+
+            if (hasPosition) {
+                // Update position PnL dynamically
+                currentPosition.unrealizedProfit += change;
+                activePnL = currentPosition.unrealizedProfit;
+                activeBalance += change;
+
+                // Sync frontend row value seamlessly
+                const rowValElem = document.getElementById(`pos-val-${currentSymbol}`);
+                if (rowValElem) {
+                    rowValElem.textContent = `$${activePnL.toFixed(4)}`;
+                }
+                document.getElementById('tick-ms-indicator').textContent = "LIVE POSITION";
+            } else {
+                // No open trade for this pair -> Show flat 0.00 PnL
+                activePnL = 0.0000;
+                document.getElementById('tick-ms-indicator').textContent = "NO OPEN POSITION";
+            }
+
+            activeAssetPrice = btcBasePrice + activePnL;
+
+            // Check armed alert conditions
+            if (armedAlertPrice !== null && !alarmActive) {
+                if (Math.abs(activeAssetPrice - armedAlertPrice) < (tickVolatility * 1.5)) {
+                    triggerAlarm();
+                }
+            }
+
+            pnlElement.classList.remove('tick-up', 'tick-down');
+            void pnlElement.offsetWidth; // Force Reflow
+            
+            if (change >= 0) {
+                pnlElement.classList.add('tick-up');
+                trendIcon.textContent = '▲';
+                trendIcon.className = 'text-xs text-emerald-500 dark:text-emerald-400 transition-transform duration-200';
+            } else {
+                pnlElement.classList.add('tick-down');
+                trendIcon.textContent = '▼';
+                trendIcon.className = 'text-xs text-rose-500 transition-transform duration-200';
+            }
+
+            // Adjust color dynamically
+            if (activePnL >= 0) {
+                pnlContainer.className = "text-3xl font-bold tracking-tight mt-2 transition-colors duration-300 font-mono-numeric text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.15)]";
+            } else {
+                pnlContainer.className = "text-3xl font-bold tracking-tight mt-2 transition-colors duration-300 font-mono-numeric text-rose-500 dark:text-rose-400 drop-shadow-[0_0_15px_rgba(244,63,94,0.15)]";
+            }
+
+            pnlElement.textContent = activePnL.toFixed(4);
+            balanceElement.textContent = activeBalance.toFixed(4);
+            assetPriceElement.textContent = activeAssetPrice.toFixed(decimalScale);
+
+            // Dynamic depth simulation updates
+            updateOrderBook(activeAssetPrice);
+
+            // Record sparkline matrix point
+            sparklinePoints.push(activePnL);
+            if (sparklinePoints.length > maxPoints) {
+                sparklinePoints.shift();
+            }
+            renderSparkline();
+
+            setTimeout(() => {
+                requestAnimationFrame(tickEngine);
+            }, 35); 
+        }
+
+        // Dynamic Web-socket style depth simulation updates
+        function updateOrderBook(mid) {
+            document.getElementById('midpoint-val').textContent = mid.toFixed(decimalScale);
+            
+            // Asks (Offers to sell, above midpoint)
+            for (let i = 1; i <= 3; i++) {
+                const askPrice = mid + (i * tickVolatility) + (Math.random() - 0.5) * (tickVolatility * 0.4);
+                const askVol = (Math.random() * 2.5 + 0.1).toFixed(3);
+                const item = document.getElementById(`ask-${i}`);
+                item.innerHTML = `<span>$${askPrice.toFixed(decimalScale)}</span> <span class="text-slate-500 font-mono text-[10px]">${askVol}</span>`;
+            }
+            // Bids (Offers to buy, below midpoint)
+            for (let i = 1; i <= 3; i++) {
+                const bidPrice = mid - (i * tickVolatility) + (Math.random() - 0.5) * (tickVolatility * 0.4);
+                const bidVol = (Math.random() * 2.5 + 0.1).toFixed(3);
+                const item = document.getElementById(`bid-${i}`);
+                item.innerHTML = `<span>$${bidPrice.toFixed(decimalScale)}</span> <span class="text-slate-500 font-mono text-[10px]">${bidVol}</span>`;
+            }
+        }
+
+        // SVG Sparkline drawing function
+        function renderSparkline() {
+            const svg = document.getElementById('sparkline');
+            const path = svg.querySelector('path');
+            const width = svg.clientWidth || 300;
+            const height = svg.clientHeight || 40;
+
+            if (sparklinePoints.length < 2) return;
+
+            const min = Math.min(...sparklinePoints);
+            const max = Math.max(...sparklinePoints);
+            const range = max - min === 0 ? 1 : max - min;
+
+            const points = sparklinePoints.map((val, i) => {
+                const x = (i / (sparklinePoints.length - 1)) * width;
+                const y = height - ((val - min) / range) * height;
+                return `${x},${y}`;
+            });
+
+            if (activePnL >= basePnL) {
+                svg.setAttribute('class', 'w-full h-full text-emerald-500 dark:text-emerald-400');
+            } else {
+                svg.setAttribute('class', 'w-full h-full text-rose-500 dark:text-rose-400');
+            }
+
+            path.setAttribute('d', `M ${points.join(' L ')}`);
+        }
+
+        // Start High-frequency loop
+        window.onload = function() {
+            for(let i=0; i<maxPoints; i++) {
+                sparklinePoints.push(basePnL + (Math.random() - 0.5) * 2);
+            }
+            requestAnimationFrame(tickEngine);
+        };
+
+        // Hardware-Accelerated GSAP Snappy Smooth Scroll Engine
+        // Tuned to run extremely fast (duration reduced to 0.25s) to avoid any lag sensation
+        const scrollSettings = {
+            speed: 1.5, // High scroll multiplier
+            duration: 0.25, // Snappy frame targeting
+            ease: "expo.out" // Crisp swift deceleration ease
+        };
+
+        let currentScrollY = window.scrollY;
+        let activeScrollTween = null;
+
+        // Custom wheel listener to calculate smooth inertia translations
+        window.addEventListener("wheel", (event) => {
+            // Bypass smooth scroll if user is interacting with an input/textarea
+            if (event.target.closest("input, textarea, select")) return;
+
+            event.preventDefault();
+            
+            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+            currentScrollY = Math.max(0, Math.min(maxScroll, currentScrollY + event.deltaY * scrollSettings.speed));
+
+            if (activeScrollTween) activeScrollTween.kill();
+
+            activeScrollTween = gsap.to(window, {
+                scrollTo: { y: currentScrollY, autoKill: false },
+                duration: scrollSettings.duration,
+                ease: scrollSettings.ease,
+                overwrite: "auto"
+            });
+        }, { passive: false });
+
+        // Update the virtual tracking coordinates if the user scrolls using native scrollbars/keys
+        window.addEventListener("scroll", () => {
+            if (!activeScrollTween || !activeScrollTween.isActive()) {
+                currentScrollY = window.scrollY;
+            }
+        });
+    </script>
+</body>
+</html>
